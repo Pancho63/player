@@ -38,43 +38,32 @@
 **
 ****************************************************************************/
 
-#include "player.h"
-
-#include "playercontrols.h"
-#include "playlistmodel.h"
-
 
 #include <QMediaService>
-#include <QMediaPlaylist>
 #include <QMediaMetaData>
 #include <QtWidgets>
-
-/////////                                       entrees micros !!!!!!
-//
+#include <QSettings>
 #include <QHostAddress>
 #include <QNetworkInterface>
-#include <QSettings>
 #include <QDebug>
+
+#include "player.h"
+#include "playercontrols.h"
+#include "playlistmodel.h"
 #include "receiveosc.h"
 #include "oscpkt.hh"
-#include "udp.hh"
 using namespace oscpkt;
 
 using std::string;
 
 
 QString ipAdrr = "127.0.0.1";
-
-QString nomPlayer = "player";
-QString PORT_NUMin =  "7001";
-    int PORT = PORT_NUMin.toInt();
-QString ipDlight = "127.0.0.1";
-QString PORT_NUMsend =  "7000";
-QString chVol = "41";
-QString masterPlay = "241";
-int indx = 0;
-
-QString path;
+QString nomsonig = "sonig";
+int indx = -1;
+QString chVol;
+QString masterPlay;
+int PORT;
+QString path ;
 
 
 Player::Player(QWidget *parent)
@@ -82,9 +71,16 @@ Player::Player(QWidget *parent)
     , slider(0)
 
 {
-//! [create-objs]
+path = (QCoreApplication::applicationDirPath() + "/saves/");
+QSettings settings (path + "sonig.ini", QSettings::IniFormat) ;
+chVol = settings.value("chVol", "41").toString();
+masterPlay = settings.value("masterPlay", "241").toString();
+PORT_NUMin = settings.value("portin", "7001").toString();
+PORT = PORT_NUMin.toInt();
+readSettings();
+
     player = new QMediaPlayer(this);
-    player->setNotifyInterval(100);
+    player->setNotifyInterval(50);
     // owned by PlaylistModel
     playlist = new QMediaPlaylist();
 
@@ -96,7 +92,10 @@ Player::Player(QWidget *parent)
 
     connect(listener, SIGNAL(workRequested()), thread, SLOT(start()));
     connect(thread, SIGNAL(started()), listener, SLOT(goOSC()));
+    connect(listener, SIGNAL(finished()), thread, SLOT(quit()));
     connect(listener, SIGNAL(reboot()), listener, SLOT(goOSC()));
+
+
 
 //
 
@@ -131,6 +130,12 @@ Player::Player(QWidget *parent)
     connect(openButton, SIGNAL(clicked()), this, SLOT(open()));
 
 //
+    QShortcut *shortcut = new QShortcut(QKeySequence(Qt::Key_Backspace), playlistView);
+    connect(shortcut, SIGNAL(activated()), this, SLOT(deleteItem()));
+
+    autoFollow = new QCheckBox(this);
+    autoFollow->setText("Auto-Follow");
+
     QPushButton *save = new QPushButton(tr("save"), this);
     connect(save, SIGNAL(clicked()), this, SLOT(save()));
 
@@ -140,30 +145,49 @@ Player::Player(QWidget *parent)
     QPushButton *clear = new QPushButton(tr("Delete"), this);
     connect(clear, SIGNAL(clicked()), this, SLOT(cleanplaylist()));
 
-
     QLabel *portin = new QLabel(tr("Port IN"), this);
     linePortOscIn = new QLineEdit(tr(""), this);
     linePortOscIn->setText(PORT_NUMin);
 
-    QPushButton *oscButton = new QPushButton(tr("Lancer serveur OSC"), this);
+    QPushButton *oscButton = new QPushButton(tr("relancer serveur OSC"), this);
     connect(oscButton, SIGNAL(clicked()), this, SLOT(startOSC()));
-
-
-    QLabel *portout = new QLabel(tr("Port Dlight"), this);
-    linePortOscOut = new QLineEdit(tr(""), this);
-    linePortOscOut->setText(PORT_NUMsend);
 
     QLabel *nomPlay = new QLabel(tr("nom conduite : "), this);
     lineNomPlayer = new QLineEdit(tr(""), this);
-    lineNomPlayer->setText(nomPlayer);
-    QLabel *chVolume = new QLabel(tr("N° Channel du volume : "), this);
+    lineNomPlayer->setText(nomsonig);
+    QLabel *chVolume = new QLabel(tr("Ch du volume : "), this);
     lineChVol = new QLineEdit(tr(""), this);
     lineChVol->setText(chVol);
-    QLabel *masterP = new QLabel(tr("N° Master Play : "), this);
+    QLabel *masterP = new QLabel(tr("Master Play : "), this);
     lineMasterPlay = new QLineEdit(tr(""), this);
     lineMasterPlay->setText(masterPlay);
+    lineDialog = new QLabel(tr(""), this);
+    lineDialog->setAlignment(Qt::AlignCenter);
+/*
+    mic1ChkBox = new QCheckBox(tr("Mic 1"), this);
+    mic1Slider = new QSlider;
+    mic1Slider->setMaximum(100);
+    mic1Slider->setOrientation(Qt::Horizontal);
+    mic1Slider->setVisible(false);
 //
+    QAudioFormat format;
+    // Set up the desired format, for example:
+    format.setSampleRate(8000);
+    format.setChannelCount(1);
+    format.setSampleSize(8);
+    format.setCodec("audio/pcm");
+    format.setByteOrder(QAudioFormat::LittleEndian);
+    format.setSampleType(QAudioFormat::UnSignedInt);
 
+    QAudioDeviceInfo info = QAudioDeviceInfo::defaultInputDevice();
+    if (!info.isFormatSupported(format)) {
+        lineDialog->setText("Default format on ch.1 not supported, trying to use the nearest.");
+        format = info.nearestFormat(format);
+        }
+
+    audioIn1 = new QAudioInput(format, this);
+
+*/
     PlayerControls *controls = new PlayerControls(this);
     controls->setState(player->state());
     controls->setVolume(player->volume());
@@ -178,94 +202,93 @@ Player::Player(QWidget *parent)
     connect(controls, SIGNAL(changeMuting(bool)), player, SLOT(setMuted(bool)));
 
 
-    connect(player, SIGNAL(stateChanged(QMediaPlayer::State)),
-            controls, SLOT(setState(QMediaPlayer::State)));
+    connect(player, SIGNAL(stateChanged(QMediaPlayer::State)), controls, SLOT(setState(QMediaPlayer::State)));
     connect(player, SIGNAL(volumeChanged(int)), controls, SLOT(setVolume(int)));
     connect(player, SIGNAL(mutedChanged(bool)), controls, SLOT(setMuted(bool)));
 
 //
     connect(player, SIGNAL(positionChanged(qint64)), this, SLOT(stopFin(qint64)));
-    connect(linePortOscOut, SIGNAL(textEdited(QString)), this, SLOT(validePortSend(QString)));
-    connect(linePortOscIn, SIGNAL(textEdited(QString)), this, SLOT(validePortIn(QString)));
-    connect(lineNomPlayer, SIGNAL(textEdited(QString)), this, SLOT(valideNomPlayer(QString)));
-    connect(lineChVol, SIGNAL(textEdited(QString)), this, SLOT(valideChVol(QString)));
-    connect(lineMasterPlay, SIGNAL(textEdited(QString)), this, SLOT(valideMasterPlay(QString)));
+    connect(linePortOscIn, SIGNAL(textChanged(QString)), this, SLOT(validePortIn(QString)));
+    connect(lineNomPlayer, SIGNAL(textChanged(QString)), this, SLOT(valideNomPlayer(QString)));
+    connect(lineChVol, SIGNAL(textChanged(QString)), this, SLOT(valideChVol(QString)));
+    connect(lineMasterPlay, SIGNAL(textChanged(QString)), this, SLOT(valideMasterPlay(QString)));
 
     connect(listener, SIGNAL(sndLevel(int)), controls, SLOT(chgVolume(int)));
-    connect(controls, SIGNAL(changeVolume(int)), this, SLOT(vol(int)));
     connect(listener, SIGNAL(trackNum(int)), this, SLOT(playtrack(int)));
-    connect(playlistView, SIGNAL(pressed(QModelIndex)), SLOT(setindx(QModelIndex)));
 
-    QBoxLayout *osclabelLayout = new QHBoxLayout;
-    osclabelLayout->setMargin(10);
-    osclabelLayout->addWidget(portin);
-    portin->setFixedWidth(50);
-    osclabelLayout->addSpacing(10);
-    osclabelLayout->addWidget(portout);
-    portout->setFixedWidth(100);
-    osclabelLayout->addStretch(1);
-
-    osclabelLayout->addStretch(1);
-    osclabelLayout->setContentsMargins(0,-1,0,-1);;
-
-    QBoxLayout *oscLayout = new QHBoxLayout;
-    oscLayout->setMargin(10);
-    oscLayout->addWidget(linePortOscIn);
-     linePortOscIn->setFixedWidth(40);
-    oscLayout->addSpacing(20);
-    oscLayout->addWidget(linePortOscOut);
-    linePortOscOut->setFixedWidth(40);
-    oscLayout->addSpacing(60);
-    oscLayout->addWidget(oscButton);
-    oscLayout->addStretch(1);
-    oscLayout->setContentsMargins(0,0,0,10);
+    connect(listener, SIGNAL(portConnect(bool, int)), this, SLOT(portConnectIn(bool, int)));
+//    connect(mic1Slider, SIGNAL(valueChanged(int)), this, SLOT(volMic1(int)));
+//    connect(mic1ChkBox, SIGNAL(toggled(bool)), mic1Slider, SLOT(setVisible(bool)));
+//    connect(mic1ChkBox, SIGNAL(toggled(bool)), this, SLOT(openMic1(bool)));
 
     QBoxLayout *nameLayout = new QHBoxLayout;
-    nameLayout->setMargin(0);
     nameLayout->addWidget(nomPlay);
-    nameLayout->addStretch(0);
     nameLayout->addWidget(lineNomPlayer);
+    nameLayout->addStretch(0);
     lineNomPlayer->setFixedWidth(100);
-    nameLayout->addWidget(save);
-    nameLayout->addWidget(load);
-    nameLayout->addStretch(1);
+
+    QBoxLayout *saveLayout = new QHBoxLayout;
+    saveLayout->addWidget(save);
+    saveLayout->addWidget(load);
+
 
     QBoxLayout *chLayout = new QHBoxLayout;
     chLayout->addWidget(chVolume);
-    chLayout->addStretch(0);
     chLayout->addWidget(lineChVol);
-    lineChVol->setFixedWidth(30);
-    chLayout->addSpacing(10);
-    chLayout->addWidget(masterP);
     chLayout->addStretch(0);
+    lineChVol->setFixedWidth(30);
+
+    QBoxLayout *mstLayout = new QHBoxLayout;
+    chLayout->addWidget(masterP);
     chLayout->addWidget(lineMasterPlay);
+    chLayout->addStretch(0);
     lineMasterPlay->setFixedWidth(30);
-    chLayout->addStretch(1);
 //
     QBoxLayout *displayLayout = new QHBoxLayout;
     displayLayout->addWidget(playlistView);
 
-    QBoxLayout *controlLayout = new QHBoxLayout;
-    controlLayout->setMargin(0);
-    controlLayout->addWidget(openButton);
-    controlLayout->addWidget(clear);
-    controlLayout->addWidget(controls);;
-
-    QBoxLayout *layout = new QVBoxLayout;
-    layout->addLayout(nameLayout);
-    layout->addLayout(chLayout);
-    layout->addLayout(displayLayout);
     QHBoxLayout *hLayout = new QHBoxLayout;
+    hLayout->addWidget(autoFollow);
     hLayout->addWidget(slider);
     hLayout->addWidget(labelDuration);
+
+    QBoxLayout *openLayout = new QHBoxLayout;
+    openLayout->addWidget(openButton);
+    openLayout->addWidget(clear);
+    openLayout->addStretch(0);
+
+    QBoxLayout *controlLayout = new QHBoxLayout;
+    controlLayout->addWidget(controls);
+
+/*    QGridLayout *micsLayout = new QGridLayout;
+    micsLayout->addWidget(mic1ChkBox, 0, 0);
+    micsLayout->addWidget(mic1Slider, 1, 0);
+*/
+    QBoxLayout *oscLayout = new QHBoxLayout;
+    oscLayout->addWidget(portin);
+    portin->setFixedWidth(50);
+    oscLayout->addWidget(linePortOscIn);
+     linePortOscIn->setFixedWidth(40);
+    oscLayout->addSpacing(20);
+    oscLayout->addWidget(oscButton);
+    oscLayout->addStretch(1);
+
+
+    QBoxLayout *layout = new QVBoxLayout;
+    layout->setContentsMargins(10, 10, 10, 5);
+    layout->setSpacing(10);
+    layout->addLayout(chLayout);
+    layout->addLayout(mstLayout);
+    layout->addLayout(displayLayout);
     layout->addLayout(hLayout);
     layout->addLayout(controlLayout);
-
-//
-    layout->addLayout(osclabelLayout);
+    layout->addLayout(openLayout);
+//    layout->addLayout(micsLayout);
     layout->addLayout(oscLayout);
+    layout->addLayout(nameLayout);
+    layout->addLayout(saveLayout);
+    layout->addWidget(lineDialog);
 //
-
     setLayout(layout);
 
     if (!player->isAvailable()) {
@@ -283,7 +306,12 @@ Player::Player(QWidget *parent)
     QStringList arguments = qApp->arguments();
     arguments.removeAt(0);
     addToPlaylist(arguments);
+
+ playlist->load(QUrl::fromLocalFile(path +"sonig.m3u"), "m3u");
+ setWindowTitle("sonig");
+ startOSC();
 }
+
 Player::~Player()
 {
 }
@@ -470,49 +498,69 @@ void Player::load()
     QDir dir(path);
     if (!dir.exists()) {dir.mkpath(".");}
 
-    QString file = QFileDialog::getOpenFileName(this, tr("Open Player"), path , tr("ini Files (*.ini)"));
+    QString file = QFileDialog::getOpenFileName(this, tr("Open sonig"), path , tr("ini Files (*.ini)"));
 
     if(file.isEmpty()) { return; }
-
+    playlist->clear();
     QFileInfo fileInfo(file);
-    nomPlayer = fileInfo.baseName();
+    nomsonig = fileInfo.baseName();
     QString loadpath = fileInfo.absolutePath();
 
-    playlist->load(QUrl::fromLocalFile(loadpath +"/"+ nomPlayer + ".m3u"), "m3u");
+    playlist->load(QUrl::fromLocalFile(loadpath +"/"+ nomsonig + ".m3u"), "m3u");
 
-    QSettings settings(path + nomPlayer + ".ini", QSettings::IniFormat) ;
+    QSettings settings(path + nomsonig + ".ini", QSettings::IniFormat) ;
     chVol = settings.value("chVol").toString();
     masterPlay = settings.value("masterPlay").toString();
     PORT_NUMin = settings.value("portin", "7001").toString();
-    PORT_NUMsend = settings.value("portsend", "7000").toString();
 
-    lineNomPlayer->setText(nomPlayer);
+
+    lineNomPlayer->setText(nomsonig);
     lineChVol->setText(chVol);
     lineMasterPlay->setText(masterPlay);
     linePortOscIn->setText(PORT_NUMin);
-    linePortOscOut->setText(PORT_NUMsend);
+     setWindowTitle(nomsonig);
+    startOSC();
 }
+
 void Player::save()
 {
     path = (QCoreApplication::applicationDirPath() + "/saves/");
     QDir dir(path);
     if (!dir.exists()) {
         dir.mkpath(".");}
-    if (!playlist->isEmpty())
-    {
-    playlist->save(QUrl::fromLocalFile(path + nomPlayer+ ".m3u"), "m3u");
-    }
-    QSettings settings(path + nomPlayer + ".ini", QSettings::IniFormat) ;
+
+              QFile f( path + nomsonig + ".m3u" );
+ if ((playlist->mediaCount()==0)){QFile::remove(path + nomsonig + ".m3u");}
+ else{
+
+     if( f.open( QIODevice::WriteOnly ) ){
+         QTextStream ts( &f );
+            ts.setCodec("ISO 8859-1");
+         for( int r = 0; r < playlist->mediaCount(); ++r ){
+
+                 ts <<  (playlist->media(r).canonicalUrl()).toString()+"\n";
+         }
+         f.close();
+     }
+
+ }
+ ////
+    QSettings settings(path + nomsonig + ".ini", QSettings::IniFormat) ;
     settings.setValue("portin", PORT_NUMin);
-    settings.setValue("portsend", PORT_NUMsend);
     settings.setValue("chVol", chVol);
     settings.setValue("masterPlay", masterPlay);
+
+    QMessageBox msgBox;
+    QString defaut = "";
+         if (nomsonig=="sonig") {defaut = "This will be your default OSCsonig";}
+    msgBox.setWindowTitle("OSCsonig");
+     msgBox.setText("Saved as \"" + nomsonig + "\""+"\n" + defaut );
+
+
+     msgBox.exec();
+    setWindowTitle(nomsonig);
 }
 
-void Player::setindx(const QModelIndex &index)
-{
-   indx = index.row();
-}
 
 void Player::playif()
 {
@@ -533,29 +581,35 @@ void Player::nextif()
 
 void Player::cleanplaylist()
 {
-   if (!playlist->isEmpty())
+    indx=((playlistView->currentIndex()).row());
+   if (!(indx==-1))
         {
         player->stop();
-        if (!(indx==0)){
         playlist->removeMedia(indx);
-        playlist->setCurrentIndex(indx);
-        }}
+        }
 }
+
 
 void Player::stopFin (qint64 pos)
 {
-    if (player->currentMedia() !=0)
-      {
-            if (pos /100 == player->duration()/100)
-              {
-               player->stop();
-               playlist->next();
-              };
-      }
+pos = pos /50;
+qint64 max = player->duration()/50;
+
+if (!(autoFollow->isChecked()))
+{if(pos != 0)
+    {
+    if ((pos) == (max))
+        {
+        player->stop();
+        nextif();
+        }
+
+    }
+}
 }
 void Player::valideNomPlayer(QString nom)
 {
-    nomPlayer = nom;
+    nomsonig = nom;
 }
 
 void Player::valideChVol(QString nmb)
@@ -568,45 +622,12 @@ void Player::valideMasterPlay(QString nmb)
      masterPlay = nmb;
 }
 
-void Player::validePortSend(QString por)
-{
-    path = (QCoreApplication::applicationDirPath() + "/saves/");
-    PORT_NUMsend = por;
-    QDir dir(path);
-        if (!dir.exists()) {
-           dir.mkpath(".");}
-    QSettings settings(path + nomPlayer + ".ini", QSettings::IniFormat) ;
-    settings.setValue("portsend", por);                     
-}
-
 void Player::validePortIn(QString por)
 {
-    path = (QCoreApplication::applicationDirPath() + "/saves/");
-    PORT_NUMin = por;
-    QDir dir(path);
-    if (!dir.exists()) {
-        dir.mkpath(".");}
-    QSettings settings(path + nomPlayer + ".ini", QSettings::IniFormat) ;
-    settings.setValue("portin", por);    
-        PORT = PORT_NUMin.toInt();
+    PORT_NUMin = por;  
+    PORT = PORT_NUMin.toInt();
 }
 
-
-void Player::vol(int level)
-{
-UdpSocket sock;
-int lvl = level*2.55+1;
- sock.connectTo(ipDlight.toStdString(), PORT_NUMsend.toStdString());
- if (!sock.isOk()) {
-    qDebug() << "Error connection to port " << PORT_NUMsend << endl;
-   } else {string message = ("/circ/" + chVol).toStdString();
-    Message msg(message); msg.pushInt32(lvl);
-     PacketWriter pw;
-     pw.startBundle().startBundle().addMessage(msg).endBundle().endBundle();
-     sock.sendPacket(pw.packetData(), pw.packetSize());
-     sock.close();
-          }
-}
 
 void Player::playtrack(int index)
 {if (index==0){player->stop();}
@@ -615,3 +636,75 @@ else if (index <= playlist->mediaCount()){
         player->play();}
 
 }
+
+void Player::portConnectIn(bool ok, int por)
+{
+if (!ok)    {
+    lineDialog->setText("!!! Error connecting to Port : " + QString::number(por)+ "      ");
+    lineDialog->setStyleSheet("QLabel{color:red}");
+    QMessageBox msgBoxNA;
+msgBoxNA.setWindowTitle("OSCours!!");
+ msgBoxNA.setText("Port non accessible");
+ msgBoxNA.exec();
+
+}
+if (ok)    {
+     lineDialog->setStyleSheet("QLabel{color:black}");
+     lineDialog->setText("Listening on Port : " + QString::number(por) + "      ");
+            }
+}
+
+void Player::deleteItem()
+{
+    indx=((playlistView->currentIndex()).row());
+   if (!(indx==-1))
+        {
+       player->stop();
+       playlist->removeMedia(indx);
+        }
+}
+
+
+void Player::writeSettings()
+{
+    QSettings settings(path + "sonig.ini", QSettings::IniFormat);
+
+    settings.beginGroup("MainWindow");
+    settings.setValue("size", size());
+    settings.setValue("pos", pos());
+    settings.endGroup();
+}
+
+void Player::readSettings()
+{
+    QSettings settings(path + "sonig.ini", QSettings::IniFormat);
+
+    settings.beginGroup("MainWindow");
+    resize(settings.value("size", QSize(400, 400)).toSize());
+    move(settings.value("pos", QPoint(200, 200)).toPoint());
+    settings.endGroup();
+}
+
+void Player::closeEvent(QCloseEvent *)
+{
+        writeSettings();
+}
+
+
+/*
+void Player::volMic1(int vol)
+{
+    audioIn1->setVolume(vol);
+}
+
+void Player::openMic1(bool on)
+{if (on)
+    {
+    audioIn1->start();
+    }
+ if (!on)
+ {
+     audioIn1->stop();
+ }
+}
+*/

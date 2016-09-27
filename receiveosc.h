@@ -2,8 +2,8 @@
 #define RECEIVEOSC_H
 
 #include <QDebug>
-#include "udp.hh"
 #include "oscpkt.hh"
+#include <QUdpSocket>
 using namespace oscpkt;
 
 
@@ -17,6 +17,8 @@ signals:
      void workRequested();
      void finished();
      void reboot();
+     void portConnect(bool, int);
+
 
      void sndLevel(int);
      void trackNum(int);
@@ -24,9 +26,12 @@ public slots:
     void goOSC();
     void reStart();
 
+private slots :
+     void processPendingDatagrams();
+
 private :
 
-    UdpSocket sock;
+    QUdpSocket *udpSocket;
 };
 
 #endif // RECEIVEOSC_H

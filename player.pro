@@ -1,5 +1,7 @@
 TEMPLATE = app
-TARGET = player
+TARGET = sonig
+
+QMAKE_MAC_SDK = macosx10.12
 
 QT += network \
       xml \
@@ -12,8 +14,8 @@ HEADERS = \
     playercontrols.h \
     playlistmodel.h \
     receiveosc.h \
-    oscpkt.hh \
-    udp.hh
+    oscpkt.hh
+
 SOURCES = main.cpp \
     player.cpp \
     playercontrols.cpp \

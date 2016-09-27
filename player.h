@@ -45,17 +45,19 @@
 #include <QWidget>
 #include <QMediaPlayer>
 #include <QMediaPlaylist>
+//#include <QAudioInput>
+
 
 #include "receiveosc.h"
 
 QT_BEGIN_NAMESPACE
 class QAbstractItemView;
 class QLabel;
-class QMediaPlayer;
 class QModelIndex;
 class QPushButton;
 class QSlider;
 class QLineEdit;
+class QCheckBox;
 QT_END_NAMESPACE
 
 class PlaylistModel;
@@ -65,10 +67,9 @@ class Player : public QWidget
     Q_OBJECT
 
 public:
+
     Player(QWidget *parent = 0);
     ~Player();
-
-signals:
 
 
 private slots:
@@ -95,18 +96,24 @@ private slots:
     void save();
     void load();
     void cleanplaylist();
-    void setindx(const QModelIndex &index);
     void playif();
     void nextif();
     void valideNomPlayer(QString);
     void valideChVol(QString);
     void valideMasterPlay(QString);
-    void validePortSend(QString);
     void validePortIn(QString);
     void stopFin(qint64);
-    void vol(int);
     void playtrack(int);
     void startOSC();
+    void portConnectIn(bool, int);
+    void deleteItem();
+    void writeSettings();
+    void readSettings();
+
+    void closeEvent(QCloseEvent *);
+
+//    void volMic1(int);
+//    void openMic1(bool);
 //
 
 
@@ -115,6 +122,10 @@ private:
     void setStatusInfo(const QString &info);
     void handleCursor(QMediaPlayer::MediaStatus status);
     void updateDurationInfo(qint64 currentInfo);
+
+
+
+    QString PORT_NUMin;
 
     QMediaPlayer *player;
     QMediaPlaylist *playlist;
@@ -128,17 +139,24 @@ private:
     qint64 duration;
 
     //
-
-    QLineEdit *linePortOscOut;
+    QCheckBox *autoFollow;
     QLineEdit *linePortOscIn;
     QLineEdit *lineNomPlayer;
     QLineEdit *lineChVol;
     QLineEdit *lineMasterPlay;
+    QLabel *lineDialog;
+
+//    QCheckBox *mic1ChkBox;
+//    QCheckBox *mic2ChkBox;
+//    QCheckBox *mic3ChkBox;
+//    QCheckBox *mic4ChkBox;
+//    QSlider *mic1Slider;
+//    QAudioInput* audioIn1;
 
     QThread *thread;
 
     Listener *listener;
-//
+
 };
 
 #endif // PLAYER_H

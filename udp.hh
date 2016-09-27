@@ -36,7 +36,7 @@
   define WIN32_LEAN_AND_MEAN before the first #include <windows.h> to
   prevent it from including tons of crap (winsock.h etc)
 */
-# include <winsock2.h> 
+# include <winsock2.h>
 # include <windows.h>
 # include <ws2tcpip.h>
 # if defined(_MSC_VER)
@@ -68,13 +68,13 @@ public:
   struct sockaddr &addr() { return addr_.sa; }
   const struct sockaddr &addr() const { return addr_.sa; }
   size_t maxLen() const { return sizeof addr_; }
-  size_t actualLen() const { 
+  size_t actualLen() const {
     if (addr().sa_family == AF_UNSPEC) return 0;
     else if (addr().sa_family == AF_INET) return sizeof(struct sockaddr_in);
     else if (addr().sa_family == AF_INET6) return sizeof(struct sockaddr_in6);
-    else return sizeof addr_; 
+    else return sizeof addr_;
   }
-  
+
   SockAddr() { memset(&addr_, 0, sizeof addr_); }
   bool empty() const { return addr().sa_family == AF_UNSPEC; /* this is the 0 value */ }
   /** retrieve the current port number, -1 in case of error */
@@ -88,7 +88,7 @@ public:
     std::string s;
     if (addr().sa_family) {
       char hostname[512], servname[512];
-      int err = getnameinfo(&addr_.sa, 
+      int err = getnameinfo(&addr_.sa,
                             sizeof addr_, hostname, sizeof hostname, servname, sizeof servname, NI_NUMERICHOST|NI_NUMERICSERV);
       if (err == 0) {
         s = hostname; s += ":"; s += servname;
@@ -96,7 +96,7 @@ public:
     }
     return s;
   }
-  
+
   friend std::ostream &operator<<(std::ostream &os, const SockAddr &ip) {
     os << "[";
     switch (ip.addr().sa_family) {
@@ -111,7 +111,7 @@ public:
 };
 
 
-/** 
+/**
     just a wrapper over the classical socket stuff
 
     should be robust, simple to use, IPv6 ready (avoids all deprecated
@@ -130,7 +130,7 @@ struct UdpSocket {
   std::vector<char> buffer;
 
 
-  UdpSocket() : handle(-1) { 
+  UdpSocket() : handle(-1) {
 #ifdef WIN32
     WSADATA wsa_data;
     if (WSAStartup(MAKEWORD(2,2), &wsa_data) != 0) {
@@ -139,31 +139,31 @@ struct UdpSocket {
 #endif
   }
 
-  ~UdpSocket() { 
-    close(); 
+  ~UdpSocket() {
+    close();
 #ifdef WIN32
     WSACleanup();
 #endif
   }
 
   void close() {
-    if (handle != -1) { 
+    if (handle != -1) {
 #ifdef WIN32
       ::closesocket(handle);
 #else
-      ::close(handle); 
+      ::close(handle);
 #endif
-      handle = -1; 
+      handle = -1;
     }
   }
 
   bool isOk() const { return error_message.empty(); }
   const std::string &errorMessage() const { return error_message; }
-    
+
   bool isBound() const { return !local_addr.empty(); }
   int  boundPort() const { return local_addr.getPort(); }
-  std::string boundPortAsString() const { 
-    char s[512]; 
+  std::string boundPortAsString() const {
+    char s[512];
 #ifndef _MSC_VER
     snprintf(s, 512, "%d", boundPort());
 #else
@@ -172,10 +172,10 @@ struct UdpSocket {
     return s;
   }
   int  socketHandle() const { return handle; }
-  std::string localHostName() const { 
+  std::string localHostName() const {
     /* this stuff is not very nice but this is what liblo does in order to
        find out a sensible name for the local host */
-    char hostname_buf[512]; 
+    char hostname_buf[512];
     if (gethostname(hostname_buf, sizeof hostname_buf) != 0)
       hostname_buf[0] = 0;
     hostname_buf[sizeof hostname_buf - 1] = 0;
@@ -185,7 +185,7 @@ struct UdpSocket {
   }
   std::string localHostNameWithPort() const { return (localHostName() + ":") + boundPortAsString(); }
 
-  enum { OPTION_UNSPEC=0, OPTION_FORCE_IPV4=1, OPTION_FORCE_IPV6=2, 
+  enum { OPTION_UNSPEC=0, OPTION_FORCE_IPV4=1, OPTION_FORCE_IPV6=2,
          OPTION_DEFAULT=OPTION_FORCE_IPV4 // according to liblo's README, using ipv6 sockets causes issues with other non-ipv6 enabled osc software
   };
 
@@ -204,14 +204,14 @@ struct UdpSocket {
     return openSocket(host, port, options);
   }
 
-  void setErr(const std::string &msg) { 
+  void setErr(const std::string &msg) {
     if (error_message.empty()) error_message = msg;
   }
 
   /** wait for the next datagram to arrive on our bound socket. Return
       false in case of failure, or timeout. When the timeout_ms is set
       to -1, it will wait forever.
-      
+
       The datagram is available with the getDatagramData() / getDatagramSize() functions,
       the sender address can be retrieved with getDatagramOrigin().
   */
@@ -219,14 +219,14 @@ struct UdpSocket {
     if (!isOk() || handle == -1) { setErr("not opened.."); return false; }
     /* 128k seems to be a reasonable value -- on linux, the max
        datagram size appears to be a little bit less than 65536 */
-    buffer.resize(1024*128); 
-    
+    buffer.resize(1024*128);
+
     /* check if something is available */
     if (timeout_ms >= 0) {
       struct timeval tv; memset(&tv, 0, sizeof tv);
       tv.tv_sec=timeout_ms/1000;
       tv.tv_usec=(timeout_ms%1000) * 1000;
-      
+
       //gettimeofday(&tv, 0); //tv.tv_usec += timeout_ms*1000;
 
       fd_set readset;
@@ -243,12 +243,12 @@ struct UdpSocket {
     socklen_t len = (socklen_t)remote_addr.maxLen();
     int nread = (int)recvfrom(handle, &buffer[0], (int)buffer.size(), 0,
                               &remote_addr.addr(), &len);
-    if (nread < 0) {       
+    if (nread < 0) {
       // maybe here we should differentiate EAGAIN/EINTR/EWOULDBLOCK from real errors
 #ifdef WIN32
-      if (WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK && 
+      if (WSAGetLastError() != WSAEINTR && WSAGetLastError() != WSAEWOULDBLOCK &&
           WSAGetLastError() != WSAECONNRESET && WSAGetLastError() != WSAECONNREFUSED) {
-        char s[512]; 
+        char s[512];
 #ifdef _MSC_VER
         _snprintf_s(s,512,512, "system error #%d", WSAGetLastError());
 #else
@@ -278,7 +278,7 @@ struct UdpSocket {
   void *packetData() { return buffer.empty() ? 0 : &buffer[0]; }
   size_t packetSize() { return buffer.size(); }
   SockAddr &packetOrigin() { return remote_addr; }
-  
+
 
   bool sendPacket(const void *ptr, size_t sz) {
     return sendPacketTo(ptr, sz, remote_addr);
@@ -287,7 +287,7 @@ struct UdpSocket {
   bool sendPacketTo(const void *ptr, size_t sz, SockAddr &addr) {
     if (!isOk() || handle == -1) { setErr("not opened.."); return false; }
     if (!ptr || sz == 0) return false;
-    
+
     int sent = 0;
     do {
       int res;
@@ -302,7 +302,7 @@ struct UdpSocket {
       else sent = res;
 #else
       //if (res == -1) cerr << "sendto handle=" << handle << ", res:" << res << ", sz=" << sz << ", errno=" << errno << " " << strerror(errno) << "\n";
-      if (res == -1 && errno == EINTR) continue;      
+      if (res == -1 && errno == EINTR) continue;
       else sent = res;
 #endif
     } while (0);
@@ -312,13 +312,13 @@ struct UdpSocket {
 
 private:
   bool openSocket(const std::string &hostname, int port, int options) {
-    char port_string[64]; 
+    char port_string[64];
 #ifdef _MSC_VER
     _snprintf_s(port_string, 64, 64, "%d", port);
 #else
     snprintf(port_string, 64, "%d", port);
 #endif
-    return openSocket(hostname, port_string, options);    
+    return openSocket(hostname, port_string, options);
   }
 
   bool openSocket(const std::string &hostname, const std::string &port, int options) {
@@ -327,7 +327,7 @@ private:
 
     struct addrinfo hints;
     struct addrinfo *result = 0, *rp = 0;
-    
+
     memset(&hints, 0, sizeof(struct addrinfo));
     if (options == OPTION_FORCE_IPV4) hints.ai_family = AF_INET;
     else if (options == OPTION_FORCE_IPV6) hints.ai_family = AF_INET6;
@@ -337,7 +337,7 @@ private:
 
     int err = 0;
 
-    
+
     err = getaddrinfo(binding ? 0 : hostname.c_str(), port.empty() ? 0 : port.c_str(), &hints, &result);
     if (err != 0) {
       setErr(gai_strerror(err));
@@ -345,7 +345,7 @@ private:
     }
 
     for (rp = result; rp && handle==-1; rp = rp->ai_next) {
- 
+
 
       handle = socket(rp->ai_family, rp->ai_socktype,
                       rp->ai_protocol);
@@ -375,9 +375,9 @@ private:
 
 
     freeaddrinfo(result); result = 0;
-    
+
     if (!rp) { // we failed miserably
-      setErr(binding ? "bind failed" : "connect failed"); assert(handle == -1); 
+      setErr(binding ? "bind failed" : "connect failed"); assert(handle == -1);
       return false;
     }
     return true;
@@ -399,8 +399,8 @@ struct Url {
     const char *s = url.c_str();
     const char *prot = strstr(s, "osc.");
     if (prot == 0) { protocol = "udp"; }
-    else { 
-      const char *p2 = strstr(prot, "://"); 
+    else {
+      const char *p2 = strstr(prot, "://");
       if (p2) { protocol.assign(prot+4, p2); }
       else { err = 1; return false; }
       s = p2+3;
@@ -409,7 +409,7 @@ struct Url {
     if (!po) { err = 2; return false; }
     hostname.assign(s, po);
     s = po+1;
-    
+
     const char *pa = strstr(s, "/");
     if (!pa) { port = s; path = "/"; }
     else { port.assign(s, pa); path = pa; }

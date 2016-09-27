@@ -1,9 +1,9 @@
-/** @mainpage OSCPKT : a minimalistic OSC ( http://opensoundcontrol.org ) c++ library 
+/** @mainpage OSCPKT : a minimalistic OSC ( http://opensoundcontrol.org ) c++ library
 
   Before using this file please take the time to read the OSC spec, it
   is short and not complicated: http://opensoundcontrol.org/spec-1_0
 
-  Features: 
+  Features:
     - handles basic OSC types: TFihfdsb
     - handles bundles
     - handles OSC pattern-matching rules (wildcards etc in message paths)
@@ -16,7 +16,7 @@
   does not:
     - take into account timestamp values.
     - provide a cpu-scalable message dispatching.
-    - not suitable for use inside a realtime thread as it allocates memory when 
+    - not suitable for use inside a realtime thread as it allocates memory when
     building or reading messages.
 
 
@@ -103,7 +103,7 @@ enum {
 };
 
 /* a few utility functions follow.. */
-  
+
 // round to the next multiple of 4, works for size_t and pointer arguments
 template <typename Type> Type ceil4(Type p) { return (Type)((size_t(p) + 3)&(~size_t(3))); }
 
@@ -128,9 +128,9 @@ inline bool isBigEndian() { // a compile-time constant would certainly improve p
 
 /** read unaligned bytes into a POD type, assuming the bytes are a little endian representation */
 template <typename POD> POD bytes2pod(const char *bytes) {
-  PodBytes<POD> p; 
+  PodBytes<POD> p;
   for (size_t i=0; i < sizeof(POD); ++i) {
-    if (isBigEndian()) 
+    if (isBigEndian())
       p.bytes[i] = bytes[i];
     else
       p.bytes[i] = bytes[sizeof(POD) - i - 1];
@@ -140,9 +140,9 @@ template <typename POD> POD bytes2pod(const char *bytes) {
 
 /** stored a POD type into an unaligned bytes array, using little endian representation */
 template <typename POD> void pod2bytes(const POD value, char *bytes) {
-  PodBytes<POD> p; p.value = value; 
+  PodBytes<POD> p; p.value = value;
   for (size_t i=0; i < sizeof(POD); ++i) {
-    if (isBigEndian()) 
+    if (isBigEndian())
       bytes[i] = p.bytes[i];
     else
       bytes[i] = p.bytes[sizeof(POD) - i - 1];
@@ -157,7 +157,7 @@ struct Storage {
     assert((data.size() & 3) == 0);
     if (data.size() + sz > data.capacity()) { data.reserve((data.size() + sz)*2); }
     size_t sz4 = ceil4(sz);
-    size_t pos = data.size(); 
+    size_t pos = data.size();
     data.resize(pos + sz4); // resize will fill with zeros, so the zero padding is OK
     return &(data[pos]);
   }
@@ -170,7 +170,7 @@ struct Storage {
   void clear() { data.resize(0); }
 };
 
-/** check if the path matches the supplied path pattern , according to the OSC spec pattern 
+/** check if the path matches the supplied path pattern , according to the OSC spec pattern
     rules ('*' and '//' wildcards, '{}' alternatives, brackets etc) */
 bool fullPatternMatch(const std::string &pattern, const std::string &path);
 /** check if the path matches the beginning of pattern */
@@ -182,11 +182,11 @@ bool partialPatternMatch(const std::string &pattern, const std::string &path);
 #define OSCPKT_SET_ERR(errcode) do { if (!err) err = errcode; } while (0)
 #endif
 
-typedef enum { OK_NO_ERROR=0, 
+typedef enum { OK_NO_ERROR=0,
                // errors raised by the Message class:
-               MALFORMED_ADDRESS_PATTERN, MALFORMED_TYPE_TAGS, MALFORMED_ARGUMENTS, UNHANDLED_TYPE_TAGS, 
+               MALFORMED_ADDRESS_PATTERN, MALFORMED_TYPE_TAGS, MALFORMED_ARGUMENTS, UNHANDLED_TYPE_TAGS,
                // errors raised by ArgReader
-               TYPE_MISMATCH, NOT_ENOUGH_ARG, PATTERN_MISMATCH, 
+               TYPE_MISMATCH, NOT_ENOUGH_ARG, PATTERN_MISMATCH,
                // errors raised by PacketReader/PacketWriter
                INVALID_BUNDLE, INVALID_PACKET_SIZE, BUNDLE_REQUIRED_FOR_MULTI_MESSAGES } ErrorCode;
 
@@ -222,7 +222,7 @@ class Message {
   std::vector<std::pair<size_t, size_t> > arguments; // array of pairs (pos,size), pos being an index into the 'storage' array.
   Storage storage; // the arguments data is stored here
   ErrorCode err;
-public:  
+public:
   /** ArgReader is used for popping arguments from a Message, holds a
       pointer to the original Message, and maintains a local error code */
   class ArgReader {
@@ -230,8 +230,8 @@ public:
     ErrorCode err;
     size_t arg_idx; // arg index of the next arg that will be popped out.
   public:
-    ArgReader(const Message &m, ErrorCode e = OK_NO_ERROR) : msg(&m), err(msg->getErr()), arg_idx(0) { 
-      if (e != OK_NO_ERROR && err == OK_NO_ERROR) err=e; 
+    ArgReader(const Message &m, ErrorCode e = OK_NO_ERROR) : msg(&m), err(msg->getErr()), arg_idx(0) {
+      if (e != OK_NO_ERROR && err == OK_NO_ERROR) err=e;
     }
     ArgReader(const ArgReader &other) : msg(other.msg), err(other.err), arg_idx(other.arg_idx) {}
     bool isBool() { return currentTypeTag() == TYPE_TAG_TRUE || currentTypeTag() == TYPE_TAG_FALSE; }
@@ -245,7 +245,7 @@ public:
     size_t nbArgRemaining() const { return msg->arguments.size() - arg_idx; }
     bool isOk() const { return err == OK_NO_ERROR; }
     operator bool() const { return isOk(); } // implicit bool conversion is handy here
-    /** call this at the end of the popXXX() chain to make sure everything is ok and 
+    /** call this at the end of the popXXX() chain to make sure everything is ok and
         all arguments have been popped */
     bool isOkNoMoreArgs() const { return err == OK_NO_ERROR && nbArgRemaining() == 0; }
     ErrorCode getErr() const { return err; }
@@ -266,9 +266,9 @@ public:
       return *this;
     }
     /** retrieve a binary blob */
-    ArgReader &popBlob(std::vector<char> &b) { 
+    ArgReader &popBlob(std::vector<char> &b) {
       if (precheck(TYPE_TAG_BLOB)) {
-        b.assign(argBeg(arg_idx)+4, argEnd(arg_idx)); 
+        b.assign(argBeg(arg_idx)+4, argEnd(arg_idx));
         ++arg_idx;
       }
       return *this;
@@ -276,7 +276,7 @@ public:
     /** retrieve a boolean argument */
     ArgReader &popBool(bool &b) {
       b = false;
-      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG); 
+      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG);
       else if (currentTypeTag() == TYPE_TAG_TRUE) b = true;
       else if (currentTypeTag() == TYPE_TAG_FALSE) b = false;
       else OSCPKT_SET_ERR(TYPE_MISMATCH);
@@ -285,17 +285,17 @@ public:
     }
     /** skip whatever comes next */
     ArgReader &pop() {
-      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG); 
+      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG);
       else ++arg_idx;
       return *this;
     }
   private:
     const char *argBeg(size_t idx) {
-      if (err || idx >= msg->arguments.size()) return 0; 
+      if (err || idx >= msg->arguments.size()) return 0;
       else return msg->storage.begin() + msg->arguments[idx].first;
     }
     const char *argEnd(size_t idx) {
-      if (err || idx >= msg->arguments.size()) return 0; 
+      if (err || idx >= msg->arguments.size()) return 0;
       else return msg->storage.begin() + msg->arguments[idx].first + msg->arguments[idx].second;
     }
     int currentTypeTag() {
@@ -311,8 +311,8 @@ public:
       return *this;
     }
     /* pre-check stuff before popping an argument from the message */
-    bool precheck(int tag) { 
-      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG); 
+    bool precheck(int tag) {
+      if (arg_idx >= msg->arguments.size()) OSCPKT_SET_ERR(NOT_ENOUGH_ARG);
       else if (!err && currentTypeTag() != tag) OSCPKT_SET_ERR(TYPE_MISMATCH);
       return err == OK_NO_ERROR;
     }
@@ -328,7 +328,7 @@ public:
   /** return the type_tags string, with its initial ',' stripped. */
   const std::string &typeTags() const { return type_tags; }
   /** retrieve the address pattern. If you want to follow to the whole OSC spec, you
-      have to handle its matching rules for address specifications -- this file does 
+      have to handle its matching rules for address specifications -- this file does
       not provide this functionality */
   const std::string &addressPattern() const { return address; }
   TimeTag timeTag() const { return time_tag; }
@@ -336,7 +336,7 @@ public:
   Message &init(const std::string &addr, TimeTag tt = TimeTag::immediate()) {
     clear();
     address = addr; time_tag = tt;
-    if (address.empty() || address[0] != '/') OSCPKT_SET_ERR(MALFORMED_ADDRESS_PATTERN);     
+    if (address.empty() || address[0] != '/') OSCPKT_SET_ERR(MALFORMED_ADDRESS_PATTERN);
     return *this;
   }
 
@@ -345,7 +345,7 @@ public:
       isOkNoMoreArgs() which will allow to check that everything went
       fine. For example:
       @code
-      if (msg.match("/foo").popInt32(i).isOkNoMoreArgs()) { blah(i); } 
+      if (msg.match("/foo").popInt32(i).isOkNoMoreArgs()) { blah(i); }
       else if (msg.match("/bar").popStr(s).popInt32(i).isOkNoMoreArgs()) { plop(s,i); }
       else cerr << "unhandled message: " << msg << "\n";
       @endcode
@@ -366,20 +366,20 @@ public:
     storage.assign((const char*)ptr, (const char*)ptr + sz);
     const char *address_beg = storage.begin();
     const char *address_end = (const char*)memchr(address_beg, 0, storage.end()-address_beg);
-    if (!address_end || !isZeroPaddingCorrect(address_end+1) || address_beg[0] != '/') { 
-      OSCPKT_SET_ERR(MALFORMED_ADDRESS_PATTERN); return; 
+    if (!address_end || !isZeroPaddingCorrect(address_end+1) || address_beg[0] != '/') {
+      OSCPKT_SET_ERR(MALFORMED_ADDRESS_PATTERN); return;
     } else address.assign(address_beg, address_end);
 
     const char *type_tags_beg = ceil4(address_end+1);
     const char *type_tags_end = (const char*)memchr(type_tags_beg, 0, storage.end()-type_tags_beg);
-    if (!type_tags_end || !isZeroPaddingCorrect(type_tags_end+1) || type_tags_beg[0] != ',') { 
-      OSCPKT_SET_ERR(MALFORMED_TYPE_TAGS); return; 
+    if (!type_tags_end || !isZeroPaddingCorrect(type_tags_end+1) || type_tags_beg[0] != ',') {
+      OSCPKT_SET_ERR(MALFORMED_TYPE_TAGS); return;
     } else type_tags.assign(type_tags_beg+1, type_tags_end); // we do not copy the initial ','
 
-    const char *arg = ceil4(type_tags_end+1); assert(arg <= storage.end()); 
+    const char *arg = ceil4(type_tags_end+1); assert(arg <= storage.end());
     size_t iarg = 0;
     while (isOk() && iarg < type_tags.size()) {
-      assert(arg <= storage.end()); 
+      assert(arg <= storage.end());
       size_t len = getArgSize(type_tags[iarg], arg);
       if (isOk()) arguments.push_back(std::make_pair(arg - storage.begin(), len));
       arg += ceil4(len); ++iarg;
@@ -390,8 +390,8 @@ public:
   }
 
   /* below are all the functions that serve when *writing* a message */
-  Message &pushBool(bool b) { 
-    type_tags += (b ? TYPE_TAG_TRUE : TYPE_TAG_FALSE); 
+  Message &pushBool(bool b) {
+    type_tags += (b ? TYPE_TAG_TRUE : TYPE_TAG_FALSE);
     arguments.push_back(std::make_pair(storage.size(), storage.size()));
     return *this;
   }
@@ -408,7 +408,7 @@ public:
   }
   Message &pushBlob(void *ptr, size_t num_bytes) {
     assert(num_bytes < 2147483647); // insane values are not welcome
-    type_tags += TYPE_TAG_BLOB; 
+    type_tags += TYPE_TAG_BLOB;
     arguments.push_back(std::make_pair(storage.size(), num_bytes+4));
     pod2bytes<int32_t>((int32_t)num_bytes, storage.getBytes(4));
     if (num_bytes)
@@ -417,8 +417,8 @@ public:
   }
 
   /** reset the message to a clean state */
-  void clear() { 
-    address.clear(); type_tags.clear(); storage.clear(); arguments.clear(); 
+  void clear() {
+    address.clear(); type_tags.clear(); storage.clear(); arguments.clear();
     err = OK_NO_ERROR; time_tag = TimeTag::immediate();
   }
 
@@ -426,7 +426,7 @@ public:
   void packMessage(Storage &s, bool write_size) const {
     if (!isOk()) return;
     size_t l_addr = address.size()+1, l_type = type_tags.size()+2;
-    if (write_size) 
+    if (write_size)
       pod2bytes<uint32_t>(uint32_t(ceil4(l_addr) + ceil4(l_type) + ceil4(storage.size())), s.getBytes(4));
     strcpy(s.getBytes(l_addr), address.c_str());
     strcpy(s.getBytes(l_type), ("," + type_tags).c_str());
@@ -444,9 +444,9 @@ private:
     switch (type) {
       case TYPE_TAG_TRUE:
       case TYPE_TAG_FALSE: sz = 0; break;
-      case TYPE_TAG_INT32: 
+      case TYPE_TAG_INT32:
       case TYPE_TAG_FLOAT: sz = 4; break;
-      case TYPE_TAG_INT64: 
+      case TYPE_TAG_INT64:
       case TYPE_TAG_DOUBLE: sz = 8; break;
       case TYPE_TAG_STRING: {
         const char *q = (const char*)memchr(p, 0, storage.end()-p);
@@ -462,17 +462,17 @@ private:
       } break;
     }
     if (p+sz > storage.end() || /* string or blob too large.. */
-        p+sz < p /* or even blob so large that it did overflow */) { 
-      OSCPKT_SET_ERR(MALFORMED_ARGUMENTS); return 0; 
+        p+sz < p /* or even blob so large that it did overflow */) {
+      OSCPKT_SET_ERR(MALFORMED_ARGUMENTS); return 0;
     }
     if (!isZeroPaddingCorrect(p+sz)) { OSCPKT_SET_ERR(MALFORMED_ARGUMENTS); return 0; }
     return sz;
   }
 
   template <typename POD> Message &pushPod(int tag, POD v) {
-    type_tags += (char)tag; 
+    type_tags += (char)tag;
     arguments.push_back(std::make_pair(storage.size(), sizeof(POD)));
-    pod2bytes(v, storage.getBytes(sizeof(POD))); 
+    pod2bytes(v, storage.getBytes(sizeof(POD)));
     return *this;
   }
 
@@ -501,7 +501,7 @@ private:
 };
 
 /**
-   parse an OSC packet and extracts the embedded OSC messages. 
+   parse an OSC packet and extracts the embedded OSC messages.
 */
 class PacketReader {
 public:
@@ -511,12 +511,12 @@ public:
 
   void init(const void *ptr, size_t sz) {
     err = OK_NO_ERROR; messages.clear();
-    if ((sz%4) == 0) { 
+    if ((sz%4) == 0) {
       parse((const char*)ptr, (const char *)ptr+sz, TimeTag::immediate());
     } else OSCPKT_SET_ERR(INVALID_PACKET_SIZE);
     it_messages = messages.begin();
   }
-  
+
   /** extract the next osc message from the packet. return 0 when all messages have been read, or in case of error. */
   Message *popMessage() {
     if (!err && !messages.empty() && it_messages != messages.end()) return &*it_messages++;
@@ -529,14 +529,14 @@ private:
   std::list<Message> messages;
   std::list<Message>::iterator it_messages;
   ErrorCode err;
-  
+
   void parse(const char *beg, const char *end, TimeTag time_tag) {
     assert(beg <= end && !err); assert(((end-beg)%4)==0);
-    
+
     if (beg == end) return;
     if (*beg == '#') {
       /* it's a bundle */
-      if (end - beg >= 20 
+      if (end - beg >= 20
           && memcmp(beg, "#bundle\0", 8) == 0) {
         TimeTag time_tag2(bytes2pod<uint64_t>(beg+8));
         const char *pos = beg + 16;
@@ -563,9 +563,9 @@ private:
 /**
    Assemble messages into an OSC packet. Example of use:
    @code
-   PacketWriter pkt; 
+   PacketWriter pkt;
    Message msg;
-   pkt.startBundle(); 
+   pkt.startBundle();
    pkt.addMessage(msg.init("/foo").pushBool(true).pushStr("plop").pushFloat(3.14f));
    pkt.addMessage(msg.init("/bar").pushBool(false));
    pkt.endBundle();
@@ -578,8 +578,8 @@ class PacketWriter {
 public:
   PacketWriter() { init(); }
   PacketWriter &init() { err = OK_NO_ERROR; storage.clear(); bundles.clear(); return *this; }
-  
-  /** begin a new bundle. If you plan to pack more than one message in the Osc packet, you have to 
+
+  /** begin a new bundle. If you plan to pack more than one message in the Osc packet, you have to
       put them in a bundle. Nested bundles inside bundles are also allowed. */
   PacketWriter &startBundle(TimeTag ts = TimeTag::immediate()) {
     char *p;
@@ -597,7 +597,7 @@ public:
       if (bundles.size()>1) { // no size stored for the top-level bundle
         pod2bytes<uint32_t>(uint32_t(storage.size() - bundles.back()), storage.begin() + bundles.back()-4);
       }
-      bundles.pop_back();      
+      bundles.pop_back();
     } else OSCPKT_SET_ERR(INVALID_BUNDLE);
     return *this;
   }
@@ -620,10 +620,10 @@ public:
       multiple of 4 -- returns 0 if the construction of the packet has
       failed. */
   uint32_t packetSize() { return err ? 0 : (uint32_t)storage.size(); }
-  
+
   /** return the bytes of the osc packet (NULL if the construction of the packet has failed) */
   char *packetData() { return err ? 0 : storage.begin(); }
-private:  
+private:
   std::vector<size_t> bundles; // hold the position in the storage array of the beginning marker of each bundle
   Storage storage;
   ErrorCode err;
@@ -647,7 +647,7 @@ inline const char *internalPatternMatch(const char *pattern, const char *path) {
       if (!match || *p != ']') return pattern;
       ++p; ++path;
     } else if (*p == '*') { // wildcard '*'
-      while (*p == '*') ++p; 
+      while (*p == '*') ++p;
       const char *best = 0;
       while (true) {
         const char *ret = internalPatternMatch(p, path);
@@ -664,7 +664,7 @@ inline const char *internalPatternMatch(const char *pattern, const char *path) {
         if (ret && ret > best) best = ret;
         if (*path == 0) break;
         if (*path == 0 || (path = strchr(path+1, '/')) == 0) break;
-      }      
+      }
       return best;
     } else if (*p == '{') { // braced list {foo,bar,baz}
       const char *end = strchr(p, '}'), *q;

@@ -39,8 +39,6 @@
 ****************************************************************************/
 
 #include "player.h"
-#include <QSettings>
-#include <QStandardPaths>
 #include <QApplication>
 
 int main(int argc, char *argv[])
